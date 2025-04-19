@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  vwap-strategy:
+    build:
+      context: .
+      dockerfile: docker/vwap-trader.dockerfile
+    container_name: nautilus-vwap-trader
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./notebooks:/app/notebooks
+      - ./reports:/app/reports
+      - ./src:/app/src
+      - ./.env:/app/.env
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"

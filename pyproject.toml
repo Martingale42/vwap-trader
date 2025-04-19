@@ -9,4 +9,5 @@ dependencies = [
     "jupyterlab>=4.4.0",
     "nautilus-trader[docker,ib]>=1.216.0",
     "polars>=1.27.1",
+    "python-dotenv>=1.1.0",
 ]

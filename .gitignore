@@ -13,7 +13,8 @@ wheels/
 .env
 
 # Data
-data/
+data/*
 
 # Results
-reports/
+reports/*
+logs/*

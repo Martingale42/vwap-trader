@@ -25,8 +25,7 @@ class VWAPStrategyConfig(StrategyConfig, frozen=True):
     """
 
     instrument_id: str
-    bar_type_15min: str
-    bar_type_4h: str
+    bar_type_1min: str
     vwap_period_15min: int = 100  # Approximately one trading day (for 15min bars)
     vwap_period_4h: int = 30  # Approximately 5 trading days (for 4h bars)
     std_dev_multiplier: float = 2.0  # Standard deviation multiplier for VWAP bands
@@ -56,8 +55,13 @@ class VWAPMultiTimeframeStrategy(Strategy):
         super().__init__(config=config)
 
         # Configuration
-        self.bar_type_15min = BarType.from_str(config.bar_type_15min)
-        self.bar_type_4h = BarType.from_str(config.bar_type_4h)
+        self.bar_type_1min = BarType.from_str(config.bar_type_1min)
+        self.bar_type_15min = BarType.from_str(
+            f"{config.instrument_id}-15-MINUTE-LAST-INTERNAL"
+        )
+        self.bar_type_4h = BarType.from_str(
+            f"{config.instrument_id}-4-HOUR-LAST-INTERNAL"
+        )
 
         # VWAP indicators
         self.vwap_15min = VolumeWeightedAveragePrice()
@@ -96,20 +100,30 @@ class VWAPMultiTimeframeStrategy(Strategy):
             InstrumentId.from_str(self.config.instrument_id)
         )
         # Subscribe to 15-minute bars
-        self.subscribe_bars(self.bar_type_15min)
+        self.subscribe_bars(self.bar_type_1min)
 
         # Subscribe to 4-hour bars (using bar aggregation if needed)
         try:
             # If 4-hour bars need to be created through aggregation from 15-min bars
-            bar_type_4h = f"{self.bar_type_4h}@-15-MINUTE-LAST-INTERNAL"
+            bar_type_15min = f"{self.bar_type_15min}@1-MINUTE-EXTERNAL"
+            self.subscribe_bars(BarType.from_str(bar_type_15min))
+            self.log.info(
+                "15-minute bars are not available directly, aggregating from 1-minute bars."
+            )
+            bar_type_4h = f"{self.bar_type_4h}@1-MINUTE-EXTERNAL"
             self.subscribe_bars(BarType.from_str(bar_type_4h))
             self.log.info(
-                "4-hour bars are not available directly, aggregating from 15-minute bars."
+                "4-hour bars are not available directly, aggregating from 1-minute bars."
             )
         except Exception:
             # If 4-hour bars are available directly
+            self.subscribe_bars(self.bar_type_15min)
+            self.log.info(
+                "15-minute bars are available directly, no aggregation needed."
+            )
             self.subscribe_bars(self.bar_type_4h)
             self.log.info("4-hour bars are available directly, no aggregation needed.")
+        self.log.info(f"Subscribed to 15-minute bars: {self.bar_type_15min}")
         self.log.info(f"Subscribed to 4-hour bars: {self.bar_type_4h}")
 
         # Register the VWAP indicators to receive bar data
@@ -349,7 +363,7 @@ class VWAPMultiTimeframeStrategy(Strategy):
             self.log.error(f"Invalid price distance: {price_distance}. Aborting trade.")
             return
 
-        position_size = risk_amount / price_distance
+        position_size = np.divide(risk_amount, price_distance)
         position_qty = self.instrument.make_qty(Decimal(str(position_size)))
 
         # Adjust position size if it's below the minimum lot size
