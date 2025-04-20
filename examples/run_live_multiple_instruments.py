@@ -27,7 +27,7 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.identifiers import TraderId
 
 # Import your VWAP strategy
-from vwap_strategy import VWAPMultiTimeframeStrategy, VWAPStrategyConfig
+from vwap_strategy_15min import VWAPMultiTimeframeStrategy, VWAPStrategyConfig
 
 
 async def main():
@@ -37,11 +37,14 @@ async def main():
     # ----------------------------------------------------------------------------------
     # 1. Configure the trading node
     # ----------------------------------------------------------------------------------
-    instrument_id = "SUIUSDT-PERP.BINANCE"
-    # You can change this to your desired instrument
-    # "ADAUSDT-PERP.BINANCE",
-    # "LTCUSDT-PERP.BINANCE",
-    # "XRPUSDT-PERP.BINANCE",
+    # 設置交易對和數據類型
+    instrument_ids = [
+        "ADAUSDT-PERP.BINANCE",
+        "LTCUSDT-PERP.BINANCE",
+        "SUIUSDT-PERP.BINANCE",
+        "SOLUSDT-PERP.BINANCE",
+        "XRPUSDT-PERP.BINANCE",
+    ]
 
     # Get API credentials from environment variables
     load_dotenv()
@@ -103,13 +106,16 @@ async def main():
     # ----------------------------------------------------------------------------------
     # 3. Configure your VWAP strategy
     # ----------------------------------------------------------------------------------
+
+    # Create 1-min and 4-hour bar types
+
     strat_config = VWAPStrategyConfig(
-        instrument_id=instrument_id,
-        vwap_period_5min=48,  # Approximately 4 trading hours (for 5min bars)
-        vwap_period_1h=12,  # Approximately 12 trading hours (for 1h bars)
+        instrument_ids=instrument_ids,
+        vwap_period_15min=100,  # Approximately one trading day (for 15min bars)
+        vwap_period_4h=30,  # Approximately 5 trading days (for 4h bars)
         std_dev_multiplier=2.0,  # Standard deviation multiplier for VWAP bands
         entry_volume_threshold=1.5,  # Volume threshold compared to average
-        risk_per_trade=0.1,  # 10% risk per trade
+        risk_per_trade=0.2,  # 10% risk per trade
         time_exit_hours=24,  # Exit trade after 24 hours if not stopped out/taken profit
     )
 
@@ -137,7 +143,7 @@ async def main():
     # ----------------------------------------------------------------------------------
     # 8. Run the node asynchronously
     # ----------------------------------------------------------------------------------
-    print(f"Starting VWAP Multi-Timeframe Strategy on {instrument_id}...")
+    print("Starting VWAP Multi-Timeframe Strategy...")
     try:
         # Run the node asynchronously
         await node.run_async()

@@ -1,6 +1,6 @@
 # -------------------------------------------------------------------------------------------------
 #  VWAP Multi-Timeframe Trading Strategy
-#  使用VWAP在1小時和5分鐘時間框架上進行交易
+#  使用VWAP在4小時和15分鐘時間框架上進行交易
 # -------------------------------------------------------------------------------------------------
 
 from collections import deque
@@ -19,67 +19,66 @@ from nautilus_trader.model.identifiers import InstrumentId, Venue
 from nautilus_trader.trading.strategy import Strategy
 
 
-class VWAPStrategyConfig(StrategyConfig, frozen=True):
+class VWAPStrategy15MConfig(StrategyConfig, frozen=True):
     """
     Configuration for the VWAP multi-timeframe strategy.
     """
 
     instrument_id: str
-    vwap_period_5min: int = 48  # Approximately 4 trading hours (for 5min bars)
-    vwap_period_1h: int = 12  # Approximately 12 trading hours (for 1h bars)
+    bar_type_1min: str
+    vwap_period_15min: int = 100  # Approximately one trading day (for 15min bars)
+    vwap_period_4h: int = 30  # Approximately 5 trading days (for 4h bars)
     std_dev_multiplier: float = 2.0  # Standard deviation multiplier for VWAP bands
     entry_volume_threshold: float = 1.5  # Volume threshold compared to average
     risk_per_trade: float = 0.02  # 2% risk per trade
     time_exit_hours: int = (
-        24  # Exit trade after 24 hours if not stopped out/taken profit
+        24 * 7  # Exit trade after 24 hours * 7 if not stopped out/taken profit
     )
 
 
-class VWAPMultiTimeframeStrategy(Strategy):
+class VWAPMultiTimeframeStrategy15M(Strategy):
     """
-    VWAP multi-timeframe strategy that uses 1-hour and 5-minute bars.
+    VWAP multi-timeframe strategy that uses 4-hour and 15-minute bars.
 
     The strategy:
-    1. Uses 1-hour VWAP to determine the overall trend
-    2. Uses 5-minute VWAP for entry and exit signals
+    1. Uses 4-hour VWAP to determine the overall trend
+    2. Uses 15-minute VWAP for entry and exit signals
     3. Uses VWAP standard deviation bands for profit targets and stop losses
     4. Implements volume filters for signal confirmation
     5. Includes risk management with fixed percentage risk per trade
     """
 
-    def __init__(self, config: VWAPStrategyConfig):
+    def __init__(self, config: VWAPStrategy15MConfig):
         """
         Initialize a new instance of the VWAPMultiTimeframeStrategy.
         """
         super().__init__(config=config)
 
         # Configuration
-        self.bar_type_1min = BarType.from_str(
-            f"{config.instrument_id}-1-MINUTE-LAST-EXTERNAL"
+        self.bar_type_1min = BarType.from_str(config.bar_type_1min)
+        self.bar_type_15min = BarType.from_str(
+            f"{config.instrument_id}-15-MINUTE-LAST-INTERNAL"
         )
-        self.bar_type_5min = BarType.from_str(
-            f"{config.instrument_id}-5-MINUTE-LAST-INTERNAL"
-        )
-        self.bar_type_1h = BarType.from_str(
-            f"{config.instrument_id}-1-HOUR-LAST-INTERNAL"
+        self.bar_type_4h = BarType.from_str(
+            f"{config.instrument_id}-4-HOUR-LAST-INTERNAL"
         )
 
         # VWAP indicators
-        self.vwap_5min = VolumeWeightedAveragePrice()
-        self.vwap_1h = VolumeWeightedAveragePrice()
+        self.vwap_15min = VolumeWeightedAveragePrice()
+        self.vwap_4h = VolumeWeightedAveragePrice()
 
         # Data storage for calculations
-        self.bars_5min = []
-        self.bars_1h = []
-        self.volumes_5min = deque(maxlen=20)  # For volume average calculation
+        self.bars_15min = []
+        self.bars_4h = []
+        self.volumes_15min = deque(maxlen=20)  # For volume average calculation
 
         # Track last VWAP values for crossover detection
-        self.last_5min_price = 0.0
-        self.last_5min_vwap = 0.0
+        self.last_15min_price = 0.0
+        self.last_15min_vwap = 0.0
 
         # Standard deviation bands for the 15-min timeframe
-        self.upper_band_5min = 0.0
-        self.lower_band_5min = 0.0
+        self.upper_band_15min = 0.0
+        self.lower_band_15min = 0.0
 
         # Tracking flags
         self.in_position = False
@@ -100,36 +99,36 @@ class VWAPMultiTimeframeStrategy(Strategy):
         self.instrument = self.cache.instrument(
             InstrumentId.from_str(self.config.instrument_id)
         )
-        # Subscribe to 5-minute bars
+        # Subscribe to 15-minute bars
         self.subscribe_bars(self.bar_type_1min)
 
-        # Subscribe to 1-hour bars (using bar aggregation if needed)
+        # Subscribe to 4-hour bars (using bar aggregation if needed)
         try:
-            # If 1-hour bars need to be created through aggregation from 15-min bars
-            bar_type_5min = f"{self.bar_type_5min}@1-MINUTE-EXTERNAL"
-            self.subscribe_bars(BarType.from_str(bar_type_5min))
+            # If 4-hour bars need to be created through aggregation from 15-min bars
+            bar_type_15min = f"{self.bar_type_15min}@1-MINUTE-EXTERNAL"
+            self.subscribe_bars(BarType.from_str(bar_type_15min))
             self.log.info(
-                "5-minute bars are not available directly, aggregating from 1-minute bars."
+                "15-minute bars are not available directly, aggregating from 1-minute bars."
             )
-            bar_type_1h = f"{self.bar_type_1h}@1-MINUTE-EXTERNAL"
-            self.subscribe_bars(BarType.from_str(bar_type_1h))
+            bar_type_4h = f"{self.bar_type_4h}@1-MINUTE-EXTERNAL"
+            self.subscribe_bars(BarType.from_str(bar_type_4h))
             self.log.info(
-                "1-hour bars are not available directly, aggregating from 1-minute bars."
+                "4-hour bars are not available directly, aggregating from 1-minute bars."
             )
         except Exception:
-            # If 1-hour bars are available directly
-            self.subscribe_bars(self.bar_type_5min)
+            # If 4-hour bars are available directly
+            self.subscribe_bars(self.bar_type_15min)
             self.log.info(
-                "5-minute bars are available directly, no aggregation needed."
+                "15-minute bars are available directly, no aggregation needed."
             )
-            self.subscribe_bars(self.bar_type_1h)
-            self.log.info("1-hour bars are available directly, no aggregation needed.")
-        self.log.info(f"Subscribed to 5-minute bars: {self.bar_type_5min}")
-        self.log.info(f"Subscribed to 1-hour bars: {self.bar_type_1h}")
+            self.subscribe_bars(self.bar_type_4h)
+            self.log.info("4-hour bars are available directly, no aggregation needed.")
+        self.log.info(f"Subscribed to 15-minute bars: {self.bar_type_15min}")
+        self.log.info(f"Subscribed to 4-hour bars: {self.bar_type_4h}")
 
         # Register the VWAP indicators to receive bar data
-        self.register_indicator_for_bars(self.bar_type_5min, self.vwap_5min)
-        self.register_indicator_for_bars(self.bar_type_1h, self.vwap_1h)
+        self.register_indicator_for_bars(self.bar_type_15min, self.vwap_15min)
+        self.register_indicator_for_bars(self.bar_type_4h, self.vwap_4h)
 
     def on_bar(self, bar: Bar) -> None:
         """
@@ -141,38 +140,38 @@ class VWAPMultiTimeframeStrategy(Strategy):
             The update bar.
         """
         # Process bar based on timeframe
-        if bar.bar_type == self.bar_type_5min:
-            self._process_5min_bar(bar)
-        elif bar.bar_type == self.bar_type_1h:
-            self._process_1h_bar(bar)
+        if bar.bar_type == self.bar_type_15min:
+            self._process_15min_bar(bar)
+        elif bar.bar_type == self.bar_type_4h:
+            self._process_4h_bar(bar)
 
-    def _process_5min_bar(self, bar: Bar) -> None:
+    def _process_15min_bar(self, bar: Bar) -> None:
         """
-        Process a 5-minute bar update.
+        Process a 15-minute bar update.
         """
         # Store the bar and update volume history
-        self.bars_5min.append(bar)
-        self.volumes_5min.append(float(bar.volume.as_double()))
+        self.bars_15min.append(bar)
+        self.volumes_15min.append(float(bar.volume.as_double()))
 
         # Current price and VWAP values
         current_price = float(bar.close.as_double())
-        self.last_5min_price = current_price
+        self.last_15min_price = current_price
 
         # Wait until both indicators are initialized
-        if not self.vwap_5min.initialized or not self.vwap_1h.initialized:
+        if not self.vwap_15min.initialized or not self.vwap_4h.initialized:
             self.log.info(
                 "Waiting for VWAP indicators to initialize...", color=LogColor.BLUE
             )
             return
 
         # Store current VWAP values
-        current_5min_vwap = self.vwap_5min.value
-        current_1h_vwap = self.vwap_1h.value
+        current_15min_vwap = self.vwap_15min.value
+        current_4h_vwap = self.vwap_4h.value
 
         # Calculate VWAP standard deviation bands for 15-min timeframe
-        if len(self.bars_5min) >= self.config.vwap_period_5min:
+        if len(self.bars_15min) >= self.config.vwap_period_15min:
             # Calculate standard deviation
-            recent_bars = self.bars_5min[-self.config.vwap_period_5min :]
+            recent_bars = self.bars_15min[-self.config.vwap_period_15min :]
             prices = [
                 np.divide(
                     (
@@ -187,27 +186,27 @@ class VWAPMultiTimeframeStrategy(Strategy):
             std_dev = np.std(prices)
 
             # Set bands
-            self.upper_band_5min = current_5min_vwap + (
+            self.upper_band_15min = current_15min_vwap + (
                 std_dev * self.config.std_dev_multiplier
             )
-            self.lower_band_5min = current_5min_vwap - (
+            self.lower_band_15min = current_15min_vwap - (
                 std_dev * self.config.std_dev_multiplier
             )
 
             # Log VWAP and bands
             self.log.info(
-                f"5min VWAP: {current_5min_vwap:.5f}, "
-                f"Upper band: {self.upper_band_5min:.5f}, "
-                f"Lower band: {self.lower_band_5min:.5f}",
+                f"15min VWAP: {current_15min_vwap:.5f}, "
+                f"Upper band: {self.upper_band_15min:.5f}, "
+                f"Lower band: {self.lower_band_15min:.5f}",
                 color=LogColor.CYAN,
             )
 
         # Detect 15-min VWAP crossover (if we have previous values)
-        if np.not_equal(self.last_5min_vwap, 0.0):
+        if np.not_equal(self.last_15min_vwap, 0.0):
             # Calculate average volume
             avg_volume = (
-                np.divide(sum(self.volumes_5min), len(self.volumes_5min))
-                if self.volumes_5min
+                np.divide(sum(self.volumes_15min), len(self.volumes_15min))
+                if self.volumes_15min
                 else 0.0
             )
             current_volume = float(bar.volume.as_double())
@@ -241,16 +240,16 @@ class VWAPMultiTimeframeStrategy(Strategy):
                 # Exit long position
                 if self.position_side == OrderSide.BUY:
                     # If price rises above upper band, take profit
-                    if current_price >= self.upper_band_5min:
+                    if current_price >= self.upper_band_15min:
                         self.log.info(
-                            f"Take profit triggered: Price {current_price:.5f} >= Upper band {self.upper_band_5min:.5f}",
+                            f"Take profit triggered: Price {current_price:.5f} >= Upper band {self.upper_band_15min:.5f}",
                             color=LogColor.GREEN,
                         )
                         self._exit_position()
                     # If price falls below VWAP, stop loss
-                    elif current_price < current_5min_vwap:
+                    elif current_price < current_15min_vwap:
                         self.log.info(
-                            f"Stop loss triggered: Price {current_price:.5f} < VWAP {current_5min_vwap:.5f}",
+                            f"Stop loss triggered: Price {current_price:.5f} < VWAP {current_15min_vwap:.5f}",
                             color=LogColor.RED,
                         )
                         self._exit_position()
@@ -258,71 +257,71 @@ class VWAPMultiTimeframeStrategy(Strategy):
                 # Exit short position
                 elif self.position_side == OrderSide.SELL:
                     # If price falls below lower band, take profit
-                    if current_price <= self.lower_band_5min:
+                    if current_price <= self.lower_band_15min:
                         self.log.info(
-                            f"Take profit triggered: Price {current_price:.5f} <= Lower band {self.lower_band_5min:.5f}",
+                            f"Take profit triggered: Price {current_price:.5f} <= Lower band {self.lower_band_15min:.5f}",
                             color=LogColor.GREEN,
                         )
                         self._exit_position()
                     # If price rises above VWAP, stop loss
-                    elif current_price > current_5min_vwap:
+                    elif current_price > current_15min_vwap:
                         self.log.info(
-                            f"Stop loss triggered: Price {current_price:.5f} > VWAP {current_5min_vwap:.5f}",
+                            f"Stop loss triggered: Price {current_price:.5f} > VWAP {current_15min_vwap:.5f}",
                             color=LogColor.RED,
                         )
                         self._exit_position()
 
             # Check for entry signals if we're not in a position
             elif not self.in_position:
-                # Uptrend in 1-hour timeframe: current price above 1h VWAP
-                uptrend_1h = current_price > current_1h_vwap
-                # Downtrend in 1-hour timeframe: current price below 1h VWAP
-                downtrend_1h = current_price < current_1h_vwap
+                # Uptrend in 4-hour timeframe: current price above 4h VWAP
+                uptrend_4h = current_price > current_4h_vwap
+                # Downtrend in 4-hour timeframe: current price below 4h VWAP
+                downtrend_4h = current_price < current_4h_vwap
 
                 # 15-min price crossing above VWAP
                 cross_above = (
-                    self.last_5min_price > current_5min_vwap
-                    and self.last_5min_price <= self.last_5min_vwap
+                    self.last_15min_price > current_15min_vwap
+                    and self.last_15min_price <= self.last_15min_vwap
                 )
                 # 15-min price crossing below VWAP
                 cross_below = (
-                    self.last_5min_price < current_5min_vwap
-                    and self.last_5min_price >= self.last_5min_vwap
+                    self.last_15min_price < current_15min_vwap
+                    and self.last_15min_price >= self.last_15min_vwap
                 )
 
                 # Volume is above threshold
                 volume_check = volume_ratio >= self.config.entry_volume_threshold
 
-                # Long signal: 1h uptrend + 5min cross above VWAP + high volume
-                if uptrend_1h and cross_above and volume_check:
+                # Long signal: 4h uptrend + 15min cross above VWAP + high volume
+                if uptrend_4h and cross_above and volume_check:
                     self.log.info(
-                        "LONG SIGNAL: 1h uptrend + 5min cross above VWAP + high volume",
+                        "LONG SIGNAL: 4h uptrend + 15min cross above VWAP + high volume",
                         color=LogColor.GREEN,
                     )
                     self._enter_position(OrderSide.BUY, bar)
 
-                # Short signal: 1h downtrend + 5min cross below VWAP + high volume
-                elif downtrend_1h and cross_below and volume_check:
+                # Short signal: 4h downtrend + 15min cross below VWAP + high volume
+                elif downtrend_4h and cross_below and volume_check:
                     self.log.info(
-                        "SHORT SIGNAL: 1h downtrend + 5min cross below VWAP + high volume",
+                        "SHORT SIGNAL: 4h downtrend + 15min cross below VWAP + high volume",
                         color=LogColor.RED,
                     )
                     self._enter_position(OrderSide.SELL, bar)
 
         # Update last VWAP value for next comparison
-        self.last_5min_vwap = current_5min_vwap
+        self.last_15min_vwap = current_15min_vwap
 
-    def _process_1h_bar(self, bar: Bar) -> None:
+    def _process_4h_bar(self, bar: Bar) -> None:
         """
-        Process a 1-hour bar update.
+        Process a 4-hour bar update.
         """
         # Store the bar
-        self.bars_1h.append(bar)
+        self.bars_4h.append(bar)
 
-        # Log 1-hour VWAP if available
-        if self.vwap_1h.initialized:
+        # Log 4-hour VWAP if available
+        if self.vwap_4h.initialized:
             self.log.info(
-                f"1h VWAP updated: {self.vwap_1h.value:.5f} at {unix_nanos_to_dt(bar.ts_event)}",
+                f"4h VWAP updated: {self.vwap_4h.value:.5f} at {unix_nanos_to_dt(bar.ts_event)}",
                 color=LogColor.MAGENTA,
             )
 
@@ -351,9 +350,9 @@ class VWAPMultiTimeframeStrategy(Strategy):
 
         # Calculate stop loss price
         if side == OrderSide.BUY:
-            stop_price = self.lower_band_5min
+            stop_price = self.lower_band_15min
         else:  # SELL
-            stop_price = self.upper_band_5min
+            stop_price = self.upper_band_15min
 
         # Calculate risk per trade in currency
         risk_amount = float(account_balance) * self.config.risk_per_trade

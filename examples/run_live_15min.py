@@ -27,7 +27,7 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.identifiers import TraderId
 
 # Import your VWAP strategy
-from vwap_strategy import VWAPMultiTimeframeStrategy, VWAPStrategyConfig
+from vwap_strategy_15min import VWAPMultiTimeframeStrategy15M, VWAPStrategy15MConfig
 
 
 async def main():
@@ -37,7 +37,7 @@ async def main():
     # ----------------------------------------------------------------------------------
     # 1. Configure the trading node
     # ----------------------------------------------------------------------------------
-    instrument_id = "SUIUSDT-PERP.BINANCE"
+    instrument_id = "ADAUSDT-PERP.BINANCE"
     # You can change this to your desired instrument
     # "ADAUSDT-PERP.BINANCE",
     # "LTCUSDT-PERP.BINANCE",
@@ -103,20 +103,25 @@ async def main():
     # ----------------------------------------------------------------------------------
     # 3. Configure your VWAP strategy
     # ----------------------------------------------------------------------------------
-    strat_config = VWAPStrategyConfig(
+
+    # Create 1-min and 4-hour bar types
+    bar_type_1min = f"{instrument_id}-1-MINUTE-LAST-EXTERNAL"
+
+    strat_config = VWAPStrategy15MConfig(
         instrument_id=instrument_id,
-        vwap_period_5min=48,  # Approximately 4 trading hours (for 5min bars)
-        vwap_period_1h=12,  # Approximately 12 trading hours (for 1h bars)
+        bar_type_1min=bar_type_1min,
+        vwap_period_15min=100,  # Approximately one trading day (for 15min bars)
+        vwap_period_4h=30,  # Approximately 5 trading days (for 4h bars)
         std_dev_multiplier=2.0,  # Standard deviation multiplier for VWAP bands
         entry_volume_threshold=1.5,  # Volume threshold compared to average
-        risk_per_trade=0.1,  # 10% risk per trade
+        risk_per_trade=0.2,  # 10% risk per trade
         time_exit_hours=24,  # Exit trade after 24 hours if not stopped out/taken profit
     )
 
     # ----------------------------------------------------------------------------------
     # 4. Instantiate your strategy with the configuration
     # ----------------------------------------------------------------------------------
-    strategy = VWAPMultiTimeframeStrategy(config=strat_config)
+    strategy = VWAPMultiTimeframeStrategy15M(config=strat_config)
 
     # ----------------------------------------------------------------------------------
     # 5. Add your strategy to the node's trader

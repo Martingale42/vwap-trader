@@ -63,17 +63,19 @@ def run_backtest():
     engine_ADA = BacktestEngineConfig(
         strategies=[
             ImportableStrategyConfig(
-                strategy_path="src.vwap_strategy:VWAPMultiTimeframeStrategy",
-                config_path="src.vwap_strategy:VWAPStrategyConfig",
+                strategy_path="src.vwap_strategy_15min:VWAPMultiTimeframeStrategy15M",
+                config_path="src.vwap_strategy_15min:VWAPStrategy15MConfig",
                 config={
                     "instrument_id": str(instruments[0].id),
-                    "vwap_period_5min": 48,  # Approximately 4 trading hours (for 5min bars)
-                    "vwap_period_1h": 12,  # Approximately 12 trading hours (for 1h bars)
+                    "bar_type_1min": f"{instruments[0].id}-1-MINUTE-LAST-EXTERNAL",
+                    "vwap_period_15min": 100,  # Approximately one trading day (for 15min bars)
+                    "vwap_period_4h": 30,  # Approximately 5 trading days (for 4h bars)
                     "std_dev_multiplier": 2.0,  # Standard deviation multiplier for VWAP bands
                     "entry_volume_threshold": 1.5,  # Volume threshold compared to average
                     "risk_per_trade": 0.1,  # 10% risk per trade
                     "time_exit_hours": (
-                        24  # Exit trade after 168 hours if not stopped out/taken profit
+                        24
+                        * 7  # Exit trade after 168 hours if not stopped out/taken profit
                     ),
                 },
             )
@@ -83,17 +85,19 @@ def run_backtest():
     engine_LTC = BacktestEngineConfig(
         strategies=[
             ImportableStrategyConfig(
-                strategy_path="src.vwap_strategy:VWAPMultiTimeframeStrategy",
-                config_path="src.vwap_strategy:VWAPStrategyConfig",
+                strategy_path="src.vwap_strategy_15min:VWAPMultiTimeframeStrategy15M",
+                config_path="src.vwap_strategy_15min:VWAPStrategy15MConfig",
                 config={
                     "instrument_id": str(instruments[3].id),
-                    "vwap_period_5min": 48,  # Approximately one trading day (for 5min bars)
-                    "vwap_period_1h": 12,  # Approximately 5 trading days (for 1h bars)
+                    "bar_type_1min": f"{instruments[3].id}-1-MINUTE-LAST-EXTERNAL",
+                    "vwap_period_15min": 100,  # Approximately one trading day (for 15min bars)
+                    "vwap_period_4h": 30,  # Approximately 5 trading days (for 4h bars)
                     "std_dev_multiplier": 2.0,  # Standard deviation multiplier for VWAP bands
                     "entry_volume_threshold": 1.5,  # Volume threshold compared to average
                     "risk_per_trade": 0.1,  # 10% risk per trade
                     "time_exit_hours": (
-                        24  # Exit trade after 168 hours if not stopped out/taken profit
+                        24
+                        * 7  # Exit trade after 168 hours if not stopped out/taken profit
                     ),
                 },
             )
@@ -103,17 +107,19 @@ def run_backtest():
     engine_SUI = BacktestEngineConfig(
         strategies=[
             ImportableStrategyConfig(
-                strategy_path="src.vwap_strategy:VWAPMultiTimeframeStrategy",
-                config_path="src.vwap_strategy:VWAPStrategyConfig",
+                strategy_path="src.vwap_strategy_15min:VWAPMultiTimeframeStrategy15M",
+                config_path="src.vwap_strategy_15min:VWAPStrategy15MConfig",
                 config={
                     "instrument_id": str(instruments[-1].id),
-                    "vwap_period_5min": 48,  # Approximately one trading day (for 5min bars)
-                    "vwap_period_1h": 12,  # Approximately 5 trading days (for 1h bars)
+                    "bar_type_1min": f"{instruments[-1].id}-1-MINUTE-LAST-EXTERNAL",
+                    "vwap_period_15min": 100,  # Approximately one trading day (for 15min bars)
+                    "vwap_period_4h": 30,  # Approximately 5 trading days (for 4h bars)
                     "std_dev_multiplier": 2.0,  # Standard deviation multiplier for VWAP bands
                     "entry_volume_threshold": 1.5,  # Volume threshold compared to average
                     "risk_per_trade": 0.1,  # 10% risk per trade
                     "time_exit_hours": (
-                        24  # Exit trade after 168 hours if not stopped out/taken profit
+                        24
+                        * 7  # Exit trade after 168 hours if not stopped out/taken profit
                     ),
                 },
             )
