@@ -20,7 +20,7 @@ RUN apt-get update && \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 複製應用代碼
-COPY . /app/
+COPY pyproject.toml /app/pyproject.toml
 
 # 使用 uv 安裝 Python 依賴
 RUN uv sync --all-extras

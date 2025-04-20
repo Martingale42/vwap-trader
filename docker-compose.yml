@@ -12,6 +12,8 @@ services:
       - ./notebooks:/app/notebooks
       - ./reports:/app/reports
       - ./src:/app/src
+      - ./run_live.py:/app/run_live.py
+      - ./run_backtest.py:/app/run_backtest.py
       - ./.env:/app/.env
     restart: unless-stopped
     logging:

@@ -27,7 +27,7 @@ from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.identifiers import TraderId
 
 # Import your VWAP strategy
-from vwap_strategy import VWAPMultiTimeframeStrategy, VWAPStrategyConfig
+from src.vwap_strategy import VWAPMultiTimeframeStrategy, VWAPStrategyConfig
 
 
 async def main():
