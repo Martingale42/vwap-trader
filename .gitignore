@@ -13,8 +13,14 @@ wheels/
 .env
 
 # Data
-data/*
+data/databento
+data/binance/catalog
+data/binance/futures/*_USDT_USDT-1m-*
+data/binance/futures_processed/*_USDT_USDT-1m-*
+
 
 # Results
 reports/*
 logs/*
+
+.DS_Store
